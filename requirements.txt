@@ -1,0 +1,9 @@
+# Production (Render): pip install -r requirements.txt
+# App lives in ./dashboard; Gunicorn loads dashboard.app:server via Procfile.
+gunicorn>=23.0.0
+dash>=4.0.0
+dash-bootstrap-components>=2.0.0
+plotly>=6.0.0
+pandas>=2.0.0
+numpy>=1.24.0
+openpyxl>=3.1.0

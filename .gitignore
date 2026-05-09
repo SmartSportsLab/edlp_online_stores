@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+*.so
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Secrets (scrapers)
+scripts/config.json
+
+# Logs / local outputs
+*.log
+
+# Scrapers / legacy (not needed for the hosted dashboard)
+archive/
+
+# Notebook outputs / heavy EDA
+assets/*.ipynb
+
+# Temp CSV backups
+*.bak
