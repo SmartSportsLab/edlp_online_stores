@@ -19,6 +19,20 @@ import re
 # Import tree map navigation
 from treemap_navigation import create_treemap_layout
 from horizontal_tree_diagram import create_horizontal_tree_layout
+from i18n import tr, club_dropdown_options, normalize_lang
+
+_ANALYTICS_LANG_OPTIONS = sorted(
+    [
+        {'label': 'Deutsch', 'value': 'de'},
+        {'label': 'English', 'value': 'en'},
+        {'label': 'Español', 'value': 'es'},
+        {'label': 'Français', 'value': 'fr'},
+        {'label': 'Italiano', 'value': 'it'},
+        {'label': 'Português', 'value': 'pt'},
+        {'label': '中文 (简体)', 'value': 'zh'},
+    ],
+    key=lambda o: o['label'].casefold(),
+)
 
 # ════════════════════════════════════════════════════════════════
 # DATA
@@ -890,6 +904,7 @@ app = dash.Dash(
     external_stylesheets=[dbc.themes.DARKLY],
     meta_tags=[{'name': 'viewport',
                 'content': 'width=device-width, initial-scale=1'}],
+    suppress_callback_exceptions=True,
 )
 server = app.server  # gunicorn / Render
 app.title = 'EDLP | Inteligencia de Tienda'
@@ -901,31 +916,46 @@ app.index_string = app.index_string.replace(
 # ════════════════════════════════════════════════════════════════
 # LAYOUT
 # ════════════════════════════════════════════════════════════════
-dropdown_options = [{'label': 'Todos los Clubes', 'value': 'Todos los Clubes'}] + \
-                   [{'label': c, 'value': c} for c in CLUB_ORDER]
-
 tier_options = TIER_OPTIONS
 
-header = dbc.Navbar(
-    dbc.Container([
-        dbc.Row([
-            dbc.Col(html.Div([
-                html.H4('EDLP | Inteligencia de Tienda', className='mb-0',
-                         style={'fontWeight': '700', 'color': '#fff'}),
-                html.Small('Benchmark de catálogo y posicionamiento comercial',
-                           className='text-muted'),
-            ]), width='auto'),
-            dbc.Col([
-                html.A('Análisis de Brechas', 
-                       href='/gap-analysis',
-                       className='btn btn-outline-light btn-sm ms-3',
-                       style={'color': '#fff', 'borderColor': '#fff'})
-            ], width='auto'),
-         ], align='center', className='w-100'),
-     ], fluid=True),
-     color='#15152a', dark=True, className='mb-4 px-3 py-2',
-     style={'borderBottom': f'2px solid {ACCENT_COLOR}'},
- )
+
+def build_header(lang):
+    return dbc.Navbar(
+        dbc.Container([
+            dbc.Row([
+                dbc.Col(html.Div([
+                    html.H4(tr(lang, 'header_title'), className='mb-0',
+                             style={'fontWeight': '700', 'color': '#fff'}),
+                    html.Small(tr(lang, 'header_sub'),
+                               className='text-muted'),
+                ]), width='auto'),
+                dbc.Col([
+                    html.A(tr(lang, 'gap_link'),
+                           href='/gap-analysis',
+                           className='btn btn-outline-light btn-sm ms-3',
+                           style={'color': '#fff', 'borderColor': '#fff'})
+                ], width='auto'),
+            ], align='center', className='w-100'),
+        ], fluid=True),
+        color='#15152a', dark=True, className='mb-4 px-3 py-2',
+        style={'borderBottom': f'2px solid {ACCENT_COLOR}'},
+    )
+
+
+def build_sidebar_nav(lang):
+    return dbc.Nav([
+        dbc.NavLink(
+            [html.I(className="fas fa-chart-line me-2"), tr(lang, 'nav_analytics')],
+            href="/",
+            active="exact",
+            className="text-light"
+        ),
+        dbc.NavLink(
+            [html.I(className="fas fa-chart-bar me-2"), tr(lang, 'nav_gap')],
+            href="/gap-analysis",
+            className="text-light"
+        ),
+    ], vertical=True, className="bg-dark", style={"padding": "2rem"})
 
 
 def section_title(text, subtitle=None, caption=None):
@@ -943,11 +973,13 @@ def section_title(text, subtitle=None, caption=None):
     return html.Div(children, className='mb-3 mt-4')
 
 
-body = dbc.Container([
+def build_analytics_body(lang):
+    opts = club_dropdown_options(lang, CLUB_ORDER)
+    return dbc.Container([
     # ── Headline Analysis ──
     section_title(
-        'Análisis de Titulares',
-        'Métricas comparativas en todos los clubes',
+        tr(lang, 'sec_headline'),
+        tr(lang, 'sec_headline_sub'),
     ),
     
     # Summary text
@@ -955,7 +987,7 @@ body = dbc.Container([
         dbc.Col(
             html.P(
                 id='headline-summary-text',
-                children="Compará las métricas clave entre los seis clubes para identificar líderes y oportunidades.",
+                children=tr(lang, 'headline_intro'),
                 className='text-muted mb-3',
                 style={'fontStyle': 'italic', 'fontSize': '14px'}
             ),
@@ -970,13 +1002,13 @@ body = dbc.Container([
         html.Hr(style={'borderColor': '#333'}),
 
     # ── 1. Price Distributions ──
-    section_title('Distribución de Precios',
-                  'Histograma y diagrama de caja por club'),
+    section_title(tr(lang, 'sec_price'),
+                  tr(lang, 'sec_price_sub')),
     dbc.Row([
         dbc.Col(
             dcc.Dropdown(
                 id='price-club-filter',
-                options=dropdown_options,
+                options=opts,
                 value='Todos los Clubes',
                 clearable=False,
                 style={'width': '200px', 'color': '#333',
@@ -987,7 +1019,7 @@ body = dbc.Container([
         dbc.Col(
             dbc.Switch(
                 id='outlier-toggle',
-                label='Incluir outliers',
+                label=tr(lang, 'outliers'),
                 value=False,  # default to exclude outliers
                 style={'color': FONT_COLOR},
                 className='mb-2',
@@ -997,7 +1029,7 @@ body = dbc.Container([
         dbc.Col(
             dbc.Switch(
                 id='yaxis-scale-toggle',
-                label='Escala Y consistente',
+                label=tr(lang, 'y_consistent'),
                 value=True,  # default to consistent scale for fair comparison
                 style={'color': FONT_COLOR},
                 className='mb-2',
@@ -1010,7 +1042,7 @@ body = dbc.Container([
     dbc.Row([
         dbc.Col(
             html.P(
-                "Analizar distribuciones de precios entre clubes para entender estrategias de precios, posicionamiento de mercado y rangos de valor.",
+                tr(lang, 'price_intro'),
                 className='text-muted mb-3',
                 style={'fontStyle': 'italic', 'fontSize': '14px'}
             ),
@@ -1022,7 +1054,7 @@ body = dbc.Container([
         dbc.Col([
             html.P(
                 id='price-hist-summary',
-                children="Cargando resumen de histograma...",
+                children=tr(lang, 'loading_hist'),
                 className='text-muted mb-2',
                 style={'fontStyle': 'italic', 'fontSize': '14px'}
             ),
@@ -1031,7 +1063,7 @@ body = dbc.Container([
         dbc.Col([
             html.P(
                 id='price-box-summary',
-                children="Cargando resumen del diagrama de caja...",
+                children=tr(lang, 'loading_box'),
                 className='text-muted mb-2',
                 style={'fontStyle': 'italic', 'fontSize': '14px'}
             ),
@@ -1042,15 +1074,15 @@ body = dbc.Container([
         html.Hr(style={'borderColor': '#333'}),
 
     # ── 2. Product Categorization ──
-    section_title('Categorización de Productos',
-                  'Análisis de categorías por club'),
+    section_title(tr(lang, 'sec_category'),
+                  tr(lang, 'sec_category_sub')),
     
     # Summary text
     dbc.Row([
         dbc.Col(
             html.P(
                 id='category-summary-text',
-                children="Analizar la distribución de categorías de productos para identificar fortalezas y oportunidades de expansión.",
+                children=tr(lang, 'category_intro'),
                 className='text-muted mb-3',
                 style={'fontStyle': 'italic', 'fontSize': '14px'}
             ),
@@ -1062,7 +1094,7 @@ body = dbc.Container([
         dbc.Col([
             html.P(
                 id='category-heatmap-summary',
-                children="Cargando resumen de mapa de calor...",
+                children=tr(lang, 'loading_heat'),
                 className='text-muted mb-2',
                 style={'fontStyle': 'italic', 'fontSize': '14px'}
             ),
@@ -1076,7 +1108,7 @@ body = dbc.Container([
                     dbc.Col(
                         [
                             html.P(
-                                PF_FINDING_2[0],
+                                tr(lang, 'pf2_caption'),
                                 className='text-muted mb-2',
                                 style={'fontStyle': 'italic', 'fontSize': '14px'},
                             ),
@@ -1096,14 +1128,14 @@ body = dbc.Container([
     ),
 
     # ── 3. Demographics & Target Audience Analysis ──
-    section_title('Análisis Demográfico y Audiencia Objetivo'),
+    section_title(tr(lang, 'sec_demo')),
 
     # Demographics club selector
     dbc.Row([
         dbc.Col(
             dcc.Dropdown(
                 id='demographics-club-filter',
-                options=dropdown_options,
+                options=opts,
                 value='Todos los Clubes',
                 clearable=False,
                 style={'width': '200px', 'color': '#333',
@@ -1116,14 +1148,14 @@ body = dbc.Container([
     dbc.Row([
         dbc.Col([
             html.H5(
-                'Edad',
+                tr(lang, 'demo_age'),
                 className='mb-2',
                 style={'fontWeight': '700', 'color': ACCENT_COLOR, 'fontSize': '1.125rem'},
             ),
             html.Div(
                 id='age-distribution-summary',
                 children=dcc.Markdown(
-                    '*Cargando…*',
+                    tr(lang, 'loading_md'),
                     className='text-muted mb-2',
                     style={'fontSize': '14px'},
                 ),
@@ -1133,14 +1165,14 @@ body = dbc.Container([
         ], md=6),
         dbc.Col([
             html.H5(
-                'Género',
+                tr(lang, 'demo_gender'),
                 className='mb-2',
                 style={'fontWeight': '700', 'color': ACCENT_COLOR, 'fontSize': '1.125rem'},
             ),
             html.Div(
                 id='gender-distribution-summary',
                 children=dcc.Markdown(
-                    '*Cargando…*',
+                    tr(lang, 'loading_md'),
                     className='text-muted mb-2',
                     style={'fontSize': '14px'},
                 ),
@@ -1156,7 +1188,7 @@ body = dbc.Container([
                     dbc.Col(
                         [
                             html.P(
-                                PF_FINDING_5[0],
+                                tr(lang, 'pf5_caption'),
                                 className='text-muted mb-2',
                                 style={'fontStyle': 'italic', 'fontSize': '14px'},
                             ),
@@ -1260,15 +1292,15 @@ body = dbc.Container([
     html.Hr(style={'borderColor': '#333'}),
     
     # ── 5. Sizes Available Analysis ──
-    section_title('Análisis de Tallas Disponibles', 
-                  'Distribución y disponibilidad de tallas por club y categoría'),
+    section_title(tr(lang, 'sec_sizes'),
+                  tr(lang, 'sec_sizes_sub')),
     
     # Summary text
     dbc.Row([
         dbc.Col(
             html.P(
                 id='sizes-summary-text',
-                children="Analizar la distribución de tallas para optimizar inventario y identificar oportunidades de mejora en la disponibilidad de productos.",
+                children=tr(lang, 'sizes_intro'),
                 className='text-muted mb-3',
                 style={'fontStyle': 'italic', 'fontSize': '14px'}
             ),
@@ -1281,7 +1313,7 @@ body = dbc.Container([
         dbc.Col(
             dcc.Dropdown(
                 id='sizes-club-filter',
-                options=dropdown_options,
+                options=opts,
                 value='Todos los Clubes',
                 clearable=False,
                 style={'width': '200px', 'color': '#333',
@@ -1291,10 +1323,10 @@ body = dbc.Container([
         ),
         dbc.Col(
             html.Div([
-                dbc.Label("Tipo de Talla:", className='me-2', style={'color': '#fff', 'marginBottom': '0', 'marginTop': '8px'}),
+                dbc.Label(tr(lang, 'size_type_label'), className='me-2', style={'color': '#fff', 'marginBottom': '0', 'marginTop': '8px'}),
                 dbc.Switch(
                     id='sizes-type-toggle',
-                    label="S/M/L (no numéricas)",
+                    label=tr(lang, 'size_letters_toggle'),
                     value=True,  # True = letter sizes; False = numeric sizes
                     className='ms-2'
                 ),
@@ -1303,10 +1335,10 @@ body = dbc.Container([
         ),
         dbc.Col(
             html.Div([
-                dbc.Label("Escala:", className='me-2', style={'color': '#fff', 'marginBottom': '0', 'marginTop': '8px'}),
+                dbc.Label(tr(lang, 'scale_label'), className='me-2', style={'color': '#fff', 'marginBottom': '0', 'marginTop': '8px'}),
                 dbc.Switch(
                     id='sizes-scale-toggle',
-                    label="Consistente",
+                    label=tr(lang, 'scale_consistent'),
                     value=True,  # Default to Consistente (True)
                     className='ms-2'
                 ),
@@ -1330,7 +1362,7 @@ body = dbc.Container([
                 dbc.CardBody([
                     html.H4("0/0", className="card-title", id="total-sizes-count"),
                     html.P(
-                        "Tallas únicas (vista / máx. entre clubes)",
+                        tr(lang, 'kpi_unique_sizes'),
                         className="card-text text-muted mb-0",
                         style={'fontSize': '14px'},
                     )
@@ -1341,7 +1373,7 @@ body = dbc.Container([
             dbc.Card([
                 dbc.CardBody([
                     html.H4("XS", className="card-title", id="most-popular-size"),
-                    html.P("Talla Más Popular", className="card-text text-muted")
+                    html.P(tr(lang, 'kpi_popular'), className="card-text text-muted")
                 ])
             ], className="text-center")
         ], md=3),
@@ -1349,7 +1381,7 @@ body = dbc.Container([
             dbc.Card([
                 dbc.CardBody([
                     html.H4("Estudiantes", className="card-title", id="most-diverse-club"),
-                    html.P("Mayor Variedad de Tallas", className="card-text text-muted")
+                    html.P(tr(lang, 'kpi_diverse'), className="card-text text-muted")
                 ])
             ], className="text-center")
         ], md=3),
@@ -1357,7 +1389,7 @@ body = dbc.Container([
             dbc.Card([
                 dbc.CardBody([
                     html.H4("0", className="card-title", id="avg-sizes-per-club"),
-                    html.P("Promedio de Tallas por Club", className="card-text text-muted")
+                    html.P(tr(lang, 'kpi_avg_club'), className="card-text text-muted")
                 ])
             ], className="text-center")
         ], md=3),
@@ -1367,7 +1399,7 @@ body = dbc.Container([
     dbc.Row([
         dbc.Col([
             html.H6(
-                'Distribución de Tallas',
+                tr(lang, 'sizes_chart_title'),
                 className='text-center mb-3',
                 style={'color': ACCENT_COLOR},
             ),
@@ -1376,65 +1408,76 @@ body = dbc.Container([
     ], className='mb-4', id='small-multiples-row'),
     html.Hr(style={'borderColor': '#333'}),
     html.Footer(
-        html.Small('Dashboard de Inteligencia de Tienda de Club — '
-                   'Proyecto Final de Máster, Sports Data Campus',
+        html.Small(tr(lang, 'footer'),
                    className='text-muted'),
         className='text-center mb-4',
     ),
-], fluid=True, style={'backgroundColor': PLOT_BG, 'minHeight': '100vh'})
+], fluid=True, style={'backgroundColor': PLOT_BG})
+
+
+def build_analytics_shell(lang):
+    lang = normalize_lang(lang)
+    return html.Div([
+        dbc.Row([
+            dbc.Col([
+                html.Span(
+                    tr(lang, 'lang_label'),
+                    className='text-muted me-2 align-middle',
+                    style={'fontSize': '14px'},
+                ),
+                dcc.Dropdown(
+                    id='analytics-lang',
+                    options=_ANALYTICS_LANG_OPTIONS,
+                    value=lang,
+                    clearable=False,
+                    style={
+                        'width': '180px',
+                        'display': 'inline-block',
+                        'verticalAlign': 'middle',
+                        'color': '#333',
+                        'backgroundColor': '#fff',
+                        'borderRadius': '6px',
+                    },
+                ),
+            ], width='auto'),
+        ], className='mb-3 pt-2 align-items-center'),
+        build_analytics_body(lang),
+    ], style={'backgroundColor': PLOT_BG, 'minHeight': '100vh'})
 
 # ════════════════════════════════════════════════════════════════
 # MULTI-PAGE LAYOUT
 # ════════════════════════════════════════════════════════════════
 
-# Navigation sidebar
-sidebar = dbc.Nav([
-    dbc.NavLink(
-        [html.I(className="fas fa-chart-line me-2"), "Analítica"],
-        href="/",
-        active="exact",
-        className="text-light"
-    ),
-    dbc.NavLink(
-        [html.I(className="fas fa-chart-bar me-2"), "Análisis de brechas"],
-        href="/gap-analysis",
-        className="text-light"
-    ),
-    # Temporarily hidden pages
-    # dbc.NavLink(
-    #     [html.I(className="fas fa-shopping-cart me-2"), "Catálogo de Productos"],
-    #     href="/catalog",
-    #     className="text-light"
-    # ),
-    # dbc.NavLink(
-    #     [html.I(className="fas fa-lightbulb me-2"), "Strategic Recommendations"],
-    #     href="/recommendations",
-    #     className="text-light"
-    # ),
-], vertical=True, className="bg-dark", style={"padding": "2rem"})
-
 # Multi-page layout
 app.layout = dbc.Container([
     dcc.Location(id="url", refresh=False),
+    dcc.Store(id="ui-language", data="es"),
     dbc.Row([
         dbc.Col([
-            sidebar
+            html.Div(id="sidebar-i18n", children=build_sidebar_nav("es")),
         ], md=2, style={"backgroundColor": "#2c3e50", "minHeight": "100vh"}),
         dbc.Col([
-            # Page content based on URL
-            html.Div(id="page-content")
-        ], md=10)
-    ])
+            html.Div(id="page-content"),
+        ], md=10),
+    ]),
 ], fluid=True, style={"padding": 0})
+
+
+@callback(Output("sidebar-i18n", "children"), Input("ui-language", "data"))
+def _translate_sidebar(lang):
+    return build_sidebar_nav(normalize_lang(lang))
+
 
 # Callback to handle page navigation
 @callback(
     Output("page-content", "children"),
-    [Input("url", "pathname")]
+    Input("url", "pathname"),
+    Input("ui-language", "data"),
 )
-def render_page_content(pathname):
-    """Render the appropriate page based on URL."""
-    
+def render_page_content(pathname, lang):
+    """Render the appropriate page based on URL and UI language."""
+    lang = normalize_lang(lang)
+
     if pathname == "/gap-analysis":
         # Import and create simple gap analysis page
         from gap_analysis_simple import create_simple_gap_analysis_layout
@@ -1463,7 +1506,16 @@ def render_page_content(pathname):
     #     return recommendations_layout
     else:
         # Default to analytics dashboard
-        return html.Div([header, body], style={'backgroundColor': PLOT_BG})
+        return html.Div([build_header(lang), build_analytics_shell(lang)], style={"backgroundColor": PLOT_BG})
+
+
+@callback(
+    Output("ui-language", "data"),
+    Input("analytics-lang", "value"),
+    prevent_initial_call=True,
+)
+def persist_analytics_language(value):
+    return normalize_lang(value)
 
 # Register catalog callbacks globally
 def register_catalog_callbacks():
@@ -1514,6 +1566,10 @@ def _apply_outlier_filter(data, include_outliers):
     return data[(data['price'] >= Q1 - 1.5 * IQR) & (data['price'] <= Q3 + 1.5 * IQR)]
 
 
+def _lang_code(lang):
+    return normalize_lang(lang)
+
+
 # ── 1. Price distributions ──
 @callback(
     Output('price-hist', 'figure'),
@@ -1521,10 +1577,12 @@ def _apply_outlier_filter(data, include_outliers):
     Input('price-club-filter', 'value'),
     Input('outlier-toggle', 'value'),
     Input('yaxis-scale-toggle', 'value'),
+    Input('ui-language', 'data'),
 )
-def update_price_hist(selected_club, include_outliers, consistent_yaxis):
+def update_price_hist(selected_club, include_outliers, consistent_yaxis, lang):
+    lang = _lang_code(lang)
     src = _apply_outlier_filter(priced, include_outliers)
-    outlier_label = '' if include_outliers else ' (sin outliers)'
+    outlier_label = '' if include_outliers else tr(lang, 'outliers_suffix')
 
     if selected_club == 'Todos los Clubes':
         fig = make_subplots(
@@ -1541,9 +1599,16 @@ def update_price_hist(selected_club, include_outliers, consistent_yaxis):
             # Compute bin edges for proper hovertemplate
             hist, bin_edges = np.histogram(data, bins=30)
             bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
-            # Create hover text for each bin
-            hover_text = [f'Rango de precio: ${int(bin_edges[i]):,.0f} - ${int(bin_edges[i+1]):,.0f}<br>N° de Productos: {int(hist[i])}'
-                          for i in range(len(hist))]
+            hover_text = [
+                tr(
+                    lang,
+                    'hover_bin',
+                    lo=f'{int(bin_edges[i]):,.0f}',
+                    hi=f'{int(bin_edges[i + 1]):,.0f}',
+                    n=int(hist[i]),
+                )
+                for i in range(len(hist))
+            ]
             fig.add_trace(go.Histogram(
                 x=data, marker_color=CLUB_COLORS[club],
                 marker_line_color=CLUB_LINE[club],
@@ -1558,13 +1623,13 @@ def update_price_hist(selected_club, include_outliers, consistent_yaxis):
                 text_y = max_count * 0.9  # 90% of max bar height
                 fig.add_vline(x=med, line_dash='dash', line_color='white',
                               line_width=1, row=r, col=c,
-                              annotation=dict(text=f'Med: {ars(med)}',
+                              annotation=dict(text=tr(lang, 'ann_median_facet', v=ars(med)),
                                               font_size=CHART_FONT_SIZE, font_color='white'))
         _hist_margin = dict(**CHART_LAYOUT['margin'])
         _hist_margin['b'] = max(_hist_margin.get('b', 50), 72)
         _hist_margin['t'] = max(_hist_margin.get('t', 50), 58)
         fig.update_layout(
-            title=f'Distribución de Precios por Club{outlier_label}',
+            title=tr(lang, 'hist_title_all', extra=outlier_label),
             **{**CHART_LAYOUT, 'height': 520, 'margin': _hist_margin},
         )
         # Same $ range on every facet so shapes align across clubs
@@ -1582,9 +1647,9 @@ def update_price_hist(selected_club, include_outliers, consistent_yaxis):
             for ci in range(1, 4):
                 x_kw = dict(range=[x_lo, x_hi], tickformat='$,.0f')
                 if ri == 2:
-                    x_kw['title_text'] = 'Precio'
+                    x_kw['title_text'] = tr(lang, 'price_axis')
                 fig.update_xaxes(**x_kw, row=ri, col=ci)
-        fig.update_yaxes(title_text='Cantidad', col=1)
+        fig.update_yaxes(title_text=tr(lang, 'count_axis'), col=1)
         # Set y-axis range based on user preference
         if consistent_yaxis:
             max_count = max([np.histogram(src[src['club_name'] == club]['price'], bins=30)[0].max() 
@@ -1597,8 +1662,16 @@ def update_price_hist(selected_club, include_outliers, consistent_yaxis):
         color = CLUB_COLORS.get(selected_club, ACCENT_COLOR)
         # Compute bin edges for proper hovertemplate
         hist, bin_edges = np.histogram(data, bins=40)
-        hover_text = [f'Rango de precio: ${int(bin_edges[i]):,.0f} - ${int(bin_edges[i+1]):,.0f}<br>N° de Productos: {int(hist[i])}'
-                      for i in range(len(hist))]
+        hover_text = [
+            tr(
+                lang,
+                'hover_bin',
+                lo=f'{int(bin_edges[i]):,.0f}',
+                hi=f'{int(bin_edges[i + 1]):,.0f}',
+                n=int(hist[i]),
+            )
+            for i in range(len(hist))
+        ]
         fig = go.Figure(go.Histogram(
             x=data, marker_color=color,
             marker_line_color=CLUB_LINE.get(selected_club, color),
@@ -1614,29 +1687,34 @@ def update_price_hist(selected_club, include_outliers, consistent_yaxis):
             max_count = hist_counts.max()
             text_y = max_count * 0.9  # 90% of max bar height
             fig.add_vline(x=med, line_dash='dash', line_color='white',
-                          annotation_text=f'Mediana: {ars(med)}',
+                          annotation_text=tr(lang, 'ann_median_single', v=ars(med)),
                           annotation_font_color='white',
                           annotation_position='top')
         fig.update_layout(
-            title=f'Distribución de Precios — {selected_club}{outlier_label}',
-            xaxis_title='Precio', yaxis_title='Cantidad',
+            title=tr(lang, 'hist_title_club', club=selected_club, extra=outlier_label),
+            xaxis_title=tr(lang, 'price_axis'), yaxis_title=tr(lang, 'count_axis'),
             **CHART_LAYOUT)
         fig.update_xaxes(tickformat='$,.0f',
                          tickvals=[50000, 100000, 150000],
                          ticktext=['$50k', '$100k', '$150k'])
     
-    # Generate dynamic histogram summary
     if selected_club == 'Todos los Clubes':
-        summary_text = "Comparar distribuciones de precios en todos los clubes para identificar diferentes estrategias de precios y posicionamiento de mercado."
+        summary_text = tr(lang, 'summary_hist_all')
     else:
         club_data = src[src['club_name'] == selected_club]
         if len(club_data) > 0:
             avg_price = club_data['price'].mean()
-            price_range = club_data['price'].max() - club_data['price'].min()
-            summary_text = f"{selected_club} tiene precios que van desde ${club_data['price'].min():,.0f} hasta ${club_data['price'].max():,.0f} con un promedio de ${avg_price:,.0f}."
+            summary_text = tr(
+                lang,
+                'summary_hist_club',
+                club=selected_club,
+                pmin=f'{club_data["price"].min():,.0f}',
+                pmax=f'{club_data["price"].max():,.0f}',
+                pavg=f'{avg_price:,.0f}',
+            )
         else:
-            summary_text = f"No hay datos de precios disponibles para {selected_club}."
-    
+            summary_text = tr(lang, 'summary_hist_none', club=selected_club)
+
     return finalize_chart(fig), summary_text
 
 
@@ -1645,10 +1723,12 @@ def update_price_hist(selected_club, include_outliers, consistent_yaxis):
     Output('price-box-summary', 'children'),
     Input('price-club-filter', 'value'),
     Input('outlier-toggle', 'value'),
+    Input('ui-language', 'data'),
 )
-def update_price_box(selected_club, include_outliers):
+def update_price_box(selected_club, include_outliers, lang):
+    lang = _lang_code(lang)
     src = _apply_outlier_filter(priced, include_outliers)
-    outlier_label = '' if include_outliers else ' (sin outliers)'
+    outlier_label = '' if include_outliers else tr(lang, 'outliers_suffix')
 
     if selected_club == 'Todos los Clubes':
         fig = go.Figure()
@@ -1660,8 +1740,8 @@ def update_price_box(selected_club, include_outliers):
                 boxmean='sd',
                 boxpoints='outliers' if include_outliers else False,
             ))
-        fig.update_layout(title=f'Diagrama de caja de precios por club{outlier_label}',
-                          yaxis_title='Precio',
+        fig.update_layout(title=tr(lang, 'box_title_all', extra=outlier_label),
+                          yaxis_title=tr(lang, 'price_axis'),
                           showlegend=False, **CHART_LAYOUT)
         fig.update_traces(hoverinfo='skip', hovertemplate=None)
         fig.update_yaxes(tickformat='$,.0f',
@@ -1677,27 +1757,33 @@ def update_price_box(selected_club, include_outliers):
             points='outliers' if include_outliers else False,
         ))
         fig.update_layout(
-            title=f'Distribución de Precio — {selected_club}{outlier_label}',
-            yaxis_title='Precio',
+            title=tr(lang, 'box_title_club', club=selected_club, extra=outlier_label),
+            yaxis_title=tr(lang, 'price_axis'),
             showlegend=False, **CHART_LAYOUT)
         fig.update_traces(hoverinfo='skip', hovertemplate=None)
         fig.update_yaxes(tickformat='$,.0f',
                          tickvals=[50000, 100000, 150000],
                          ticktext=['$50k', '$100k', '$150k'])
     
-    # Generate dynamic box plot summary
     if selected_club == 'Todos los Clubes':
-        summary_text = "Los diagramas de caja muestran cuartiles y dispersión de precios en todos los clubes, revelando diferentes estrategias de precios y rangos de valor."
+        summary_text = tr(lang, 'summary_box_all')
     else:
         club_data = src[src['club_name'] == selected_club]
         if len(club_data) > 0:
             median_price = club_data['price'].median()
             q1 = club_data['price'].quantile(0.25)
             q3 = club_data['price'].quantile(0.75)
-            summary_text = f"{selected_club} tiene un precio mediano de ${median_price:,.0f} con el 50% de los productos con precios entre ${q1:,.0f} y ${q3:,.0f}."
+            summary_text = tr(
+                lang,
+                'summary_box_club',
+                club=selected_club,
+                med=f'{median_price:,.0f}',
+                q1=f'{q1:,.0f}',
+                q3=f'{q3:,.0f}',
+            )
         else:
-            summary_text = f"No hay datos de precios disponibles para {selected_club}."
-    
+            summary_text = tr(lang, 'summary_hist_none', club=selected_club)
+
     return finalize_chart(fig), summary_text
 
 
@@ -1706,8 +1792,10 @@ def update_price_box(selected_club, include_outliers):
     Output('headline-dot-plot', 'figure'),
     Output('headline-summary-text', 'children'),
     Input('url', 'pathname'),
+    Input('ui-language', 'data'),
 )
-def update_headline_dot_plot(_pathname):
+def update_headline_dot_plot(_pathname, lang):
+    lang = _lang_code(lang)
     selected_metric = 'product_count'
     # Calculate metrics for each club
     club_metrics = {}
@@ -1717,8 +1805,8 @@ def update_headline_dot_plot(_pathname):
         
         if selected_metric == 'product_count':
             club_metrics[club] = len(club_data)
-            title = 'Número de Productos por Club'
-            xaxis_title = 'Número de Productos'
+            title = tr(lang, 'metric_products_title')
+            xaxis_title = tr(lang, 'metric_products_axis')
             
         elif selected_metric == 'category_count':
             # Use category_tier_1 - derived from URLs and product names
@@ -1727,14 +1815,14 @@ def update_headline_dot_plot(_pathname):
             else:
                 categories = 0
             club_metrics[club] = categories
-            title = 'Número de Categorías por Club'
-            xaxis_title = 'Número de Categorías'
+            title = tr(lang, 'metric_products_title')
+            xaxis_title = tr(lang, 'metric_products_axis')
             
         elif selected_metric == 'avg_price':
             avg_price = club_data['price'].mean() if club_data['price'].notna().sum() > 0 else 0
             club_metrics[club] = avg_price
-            title = 'Precio Promedio de Producto por Club'
-            xaxis_title = 'Precio Promedio (ARS)'
+            title = tr(lang, 'metric_products_title')
+            xaxis_title = tr(lang, 'metric_products_axis')
     
     # Generate dynamic Estudiantes-specific summary text
     estudiantes_value = club_metrics.get('Estudiantes', 0)
@@ -1748,22 +1836,32 @@ def update_headline_dot_plot(_pathname):
     avg_value = sum(all_values) / len(all_values)
     diff_from_avg = estudiantes_value - avg_value
     
-    # Generate ranking text
     if estudiantes_rank == 1:
-        rank_text = "1er lugar"
+        rank_text = tr(lang, 'rank_1')
     elif estudiantes_rank == 2:
-        rank_text = "2do lugar"
+        rank_text = tr(lang, 'rank_2')
     elif estudiantes_rank == 3:
-        rank_text = "3er lugar"
+        rank_text = tr(lang, 'rank_3')
     else:
-        rank_text = f"{estudiantes_rank}° lugar"
+        rank_text = tr(lang, 'rank_n', n=estudiantes_rank)
     
-    # Generate dynamic summary based on metric
     if selected_metric == 'product_count':
         if diff_from_avg >= 0:
-            summary_text = f"Estudiantes ocupa el {rank_text} con {estudiantes_value:,.0f} productos totales, {abs(diff_from_avg):.0f} por encima del promedio de clubes."
+            summary_text = tr(
+                lang,
+                'sum_pc_above',
+                rank=rank_text,
+                val=estudiantes_value,
+                diff=abs(diff_from_avg),
+            )
         else:
-            summary_text = f"Estudiantes ocupa el {rank_text} con {estudiantes_value:,.0f} productos totales, {abs(diff_from_avg):.0f} por debajo del promedio de clubes."
+            summary_text = tr(
+                lang,
+                'sum_pc_below',
+                rank=rank_text,
+                val=estudiantes_value,
+                diff=abs(diff_from_avg),
+            )
     elif selected_metric == 'category_count':
         if diff_from_avg >= 0:
             summary_text = f"Estudiantes ocupa el {rank_text} con {estudiantes_value} categorías de productos, {abs(diff_from_avg):.1f} por encima del promedio de clubes."
@@ -1815,11 +1913,10 @@ def update_headline_dot_plot(_pathname):
             hovertemplate=f'<b>{club}</b><br>{xaxis_title}: {text_value}<extra></extra>',
         ))
 
-    # Six-club average reference (vertical line on x)
     if selected_metric == 'avg_price':
-        ann_text = f'Promedio (6 clubes): ${avg_value:,.0f}'
+        ann_text = tr(lang, 'avg_six', v=f'${avg_value:,.0f}')
     else:
-        ann_text = f'Promedio (6 clubes): {avg_value:,.0f}'
+        ann_text = tr(lang, 'avg_six', v=f'{avg_value:,.0f}')
     fig.add_vline(
         x=avg_value,
         line_width=1.5,
@@ -1866,8 +1963,10 @@ def update_headline_dot_plot(_pathname):
     Output('category-heatmap', 'figure'),
     Output('category-heatmap-summary', 'children'),
     Input('url', 'pathname'),
+    Input('ui-language', 'data'),
 )
-def update_category_heatmap(_pathname):
+def update_category_heatmap(_pathname, lang):
+    lang = _lang_code(lang)
     try:
         # Fixed category view to match the target screenshot:
         # - all clubs
@@ -1881,13 +1980,12 @@ def update_category_heatmap(_pathname):
             category_col = 'price_category' if 'price_category' in df.columns else None
         
         if category_col is None:
-            # Create empty figure with message
             fig = go.Figure()
             fig.update_layout(
-                title='No hay datos de categorías disponibles',
+                title=tr(lang, 'no_cat_data'),
                 **CHART_LAYOUT
             )
-            return finalize_chart(fig), "No se encontraron datos de categorías en el dataset."
+            return finalize_chart(fig), tr(lang, 'no_cat_dataset')
         
         # Create category count matrix
         category_counts = df.groupby(['club_name', category_col]).size().unstack(fill_value=0)
@@ -1916,10 +2014,10 @@ def update_category_heatmap(_pathname):
                 # Club not found, create empty
                 fig = go.Figure()
                 fig.update_layout(
-                    title=f'No hay datos para {selected_club}',
+                    title=tr(lang, 'no_data_for_club', club=selected_club),
                     **CHART_LAYOUT
                 )
-                return finalize_chart(fig), f"No se encontraron datos para {selected_club}."
+                return finalize_chart(fig), tr(lang, 'no_data_for_club_sum', club=selected_club)
         
         z_raw = category_counts.values.astype(float)
         flat = z_raw.ravel()
@@ -1939,9 +2037,9 @@ def update_category_heatmap(_pathname):
                 text=z_raw,
                 texttemplate='%{text:.0f}',
                 textfont={'size': CHART_FONT_SIZE, 'color': '#111111'},
-                hovertemplate='Club: %{y}<br>Categoría: %{x}<br>Productos: %{z:.0f}<extra></extra>',
+                hovertemplate=tr(lang, 'heat_hover_plotly'),
                 colorbar=dict(
-                    title=dict(text='Número de productos'),
+                    title=dict(text=tr(lang, 'colorbar_products')),
                     tickformat=',.0f',
                 ),
             )
@@ -1950,34 +2048,43 @@ def update_category_heatmap(_pathname):
         _heat_margin = dict(**CHART_LAYOUT['margin'])
         _heat_margin['t'] = max(_heat_margin.get('t', 50), 78)
         fig.update_layout(
-            title='Mapa de Calor: Número de Productos por Categoría',
-            xaxis_title='Categoría',
-            yaxis_title='Club',
+            title=tr(lang, 'heat_title'),
+            xaxis_title=tr(lang, 'cat_axis'),
+            yaxis_title=tr(lang, 'club_axis'),
             **{**CHART_LAYOUT, 'margin': _heat_margin},
         )
         fig.update_xaxes(side='top')
         
-        # Generate summary
         if selected_club == 'Todos los Clubes':
             total_categories = category_counts.shape[1]
             max_products = category_counts.values.max()
-            summary_text = f"Los 6 clubes tienen {total_categories} categorías totales, con un máximo de {max_products} productos en una sola categoría."
+            summary_text = tr(
+                lang,
+                'heat_summary_all',
+                nc=total_categories,
+                mx=int(max_products),
+            )
         else:
             club_categories = category_counts.loc[selected_club]
-            non_zero_cats = (club_categories > 0).sum()
-            total_products = club_categories.sum()
-            summary_text = f"{selected_club} tiene {non_zero_cats} categorías activas con {total_products} productos totales."
-        
+            non_zero_cats = int((club_categories > 0).sum())
+            total_products = int(club_categories.sum())
+            summary_text = tr(
+                lang,
+                'heat_summary_club',
+                club=selected_club,
+                nc=non_zero_cats,
+                tp=total_products,
+            )
+
         return finalize_chart(fig), summary_text
-    
+
     except Exception as e:
-        # Create empty figure with error message
         fig = go.Figure()
         fig.update_layout(
-            title='Error al cargar datos de categorías',
+            title=tr(lang, 'cat_error_title'),
             **CHART_LAYOUT
         )
-        return finalize_chart(fig), f"Error al procesar datos: {str(e)}"
+        return finalize_chart(fig), tr(lang, 'cat_error_body', err=str(e))
 
 
 def _discrete_colors_from_heatmap_scale(n: int) -> list:
@@ -2015,15 +2122,17 @@ def _demographic_stacked_figure(
     chart_title: str | None,
     selected_club: str,
     segment_colors: dict | None = None,
+    lang: str | None = None,
 ) -> go.Figure:
     """100% stacked bars by club (or one club): % of that club's catalog; NA as its own segment."""
+    lc = _lang_code(lang)
     fd = filtered_df.copy()
     n_total = len(fd)
     if n_total == 0:
         fig = go.Figure()
         fig.update_layout(title=chart_title, **CHART_LAYOUT)
         fig.add_annotation(
-            text='Sin datos',
+            text=tr(lc, 'no_data_short'),
             xref='paper',
             yref='paper',
             x=0.5,
@@ -2065,6 +2174,16 @@ def _demographic_stacked_figure(
             c_vals = [int(counts.loc[c, seg]) for c in clubs_present]
             t_vals = [int(club_totals.loc[c]) if pd.notna(club_totals.loc[c]) else 0 for c in clubs_present]
             customdata = [f'{c} / {t}' for c, t in zip(c_vals, t_vals)]
+            if lc == 'en':
+                hov = (
+                    f'<b>{seg}</b><br>%{{x}}<br>%{{y:.1f}}% of club catalog'
+                    '<br>%{customdata} products<extra></extra>'
+                )
+            else:
+                hov = (
+                    f'<b>{seg}</b><br>%{{x}}<br>%{{y:.1f}}% del catálogo del club'
+                    '<br>%{customdata} productos<extra></extra>'
+                )
             fig.add_trace(
                 go.Bar(
                     name=seg,
@@ -2072,10 +2191,7 @@ def _demographic_stacked_figure(
                     y=pct[seg].tolist(),
                     marker_color=color_map[seg],
                     marker_line=dict(width=1.5, color=PAPER_BG),
-                    hovertemplate=(
-                        f'<b>{seg}</b><br>%{{x}}<br>%{{y:.1f}}% del catálogo del club'
-                        '<br>%{customdata} productos<extra></extra>'
-                    ),
+                    hovertemplate=hov,
                     customdata=customdata,
                 )
             )
@@ -2084,6 +2200,16 @@ def _demographic_stacked_figure(
         for seg in seg_order:
             cnt = int(vc[seg])
             yv = (cnt / n_total * 100) if n_total else 0.0
+            if lc == 'en':
+                hov1 = (
+                    f'<b>{seg}</b><br>{selected_club}<br>%{{y:.1f}}% of catalog'
+                    f'<br>{cnt} of {n_total} products<extra></extra>'
+                )
+            else:
+                hov1 = (
+                    f'<b>{seg}</b><br>{selected_club}<br>%{{y:.1f}}% del catálogo'
+                    f'<br>{cnt} de {n_total} productos<extra></extra>'
+                )
             fig.add_trace(
                 go.Bar(
                     name=seg,
@@ -2091,10 +2217,7 @@ def _demographic_stacked_figure(
                     y=[yv],
                     marker_color=color_map[seg],
                     marker_line=dict(width=1.5, color=PAPER_BG),
-                    hovertemplate=(
-                        f'<b>{seg}</b><br>{selected_club}<br>%{{y:.1f}}% del catálogo'
-                        f'<br>{cnt} de {n_total} productos<extra></extra>'
-                    ),
+                    hovertemplate=hov1,
                 )
             )
 
@@ -2102,8 +2225,8 @@ def _demographic_stacked_figure(
     _m['r'] = max(_m.get('r', 30), 130)
     layout_kwargs = dict(
         barmode='stack',
-        xaxis_title='Club' if selected_club == 'Todos los Clubes' else '',
-        yaxis_title='% del catálogo del club',
+        xaxis_title=tr(lc, 'club_axis') if selected_club == 'Todos los Clubes' else '',
+        yaxis_title=tr(lc, 'y_pct_catalog'),
         yaxis=dict(range=[0, 100], ticksuffix='%', tickformat='.0f'),
         legend=dict(
             orientation='v',
@@ -2127,21 +2250,19 @@ def _age_insight_markdown(
     n_cat: int,
     vc_all: pd.Series,
     selected_club: str,
+    lang: str | None = None,
 ) -> str:
+    lc = _lang_code(lang)
     if n_cat == 0 or len(vc_all) == 0:
-        return 'Sin datos para mostrar.'
+        return tr(lc, 'sin_datos_show')
 
     dom = str(vc_all.index[0])
     dom_pct = float(vc_all.iloc[0]) / n_cat * 100
     if selected_club == 'Todos los Clubes':
-        lead = (
-            f'En el catálogo conjunto ({n_cat} productos), {dom} suma {dom_pct:.1f}% de las fichas.'
-        )
+        lead = tr(lc, 'age_lead_all', n=n_cat, dom=dom, pct=dom_pct)
     else:
-        lead = (
-            f'En el catálogo de {selected_club} ({n_cat} productos), {dom} suma {dom_pct:.1f}% de las fichas.'
-        )
-    return lead + ' Cada barra es la mezcla interna de un club (100% por barra).'
+        lead = tr(lc, 'age_lead_club', club=selected_club, n=n_cat, dom=dom, pct=dom_pct)
+    return lead + tr(lc, 'age_suffix')
 
 
 def _gender_insight_markdown(
@@ -2150,9 +2271,11 @@ def _gender_insight_markdown(
     n_cat: int,
     vc_all: pd.Series,
     selected_club: str,
+    lang: str | None = None,
 ) -> str:
+    lc = _lang_code(lang)
     if n_cat == 0 or len(vc_all) == 0:
-        return 'Sin datos para mostrar.'
+        return tr(lc, 'sin_datos_show')
 
     def _hom_muj_counts(vc: pd.Series) -> tuple[float, float]:
         h = float(vc['hombre']) if 'hombre' in vc.index else 0.0
@@ -2162,25 +2285,21 @@ def _gender_insight_markdown(
     if selected_club == 'Todos los Clubes':
         hom_n, muj_n = _hom_muj_counts(vc_all)
         if muj_n <= 0:
-            return 'Ratio hombre / mujer: no hay suficientes etiquetas «mujer» en el catálogo conjunto.'
+            return tr(lc, 'gender_no_mujer_all')
         r = hom_n / muj_n
-        return (
-            f'Ratio aproximado hombre / mujer en la red: {r:.1f}× (balance de PLP y campañas).'
-        )
+        return tr(lc, 'gender_ratio_all', r=r)
 
     fd = filtered_df.copy()
     fd['_g'] = fd['gender'].apply(_gender_label_for_chart).fillna(na_g).astype(str)
     cg = fd[fd['club_name'] == selected_club]
     if len(cg) == 0:
-        return f'Sin datos para {selected_club}.'
+        return tr(lc, 'gender_no_data_club', club=selected_club)
     vc_c = cg['_g'].value_counts()
     hom_n, muj_n = _hom_muj_counts(vc_c)
     if muj_n <= 0:
-        return f'Ratio hombre / mujer: no hay suficientes etiquetas «mujer» en {selected_club}.'
+        return tr(lc, 'gender_no_mujer_club', club=selected_club)
     r = hom_n / muj_n
-    return (
-        f'Ratio aproximado hombre / mujer en {selected_club}: {r:.1f}× (balance de PLP y campañas).'
-    )
+    return tr(lc, 'gender_ratio_club', club=selected_club, r=r)
 
 
 # ── Demographics & Target Audience Callbacks ──
@@ -2188,8 +2307,10 @@ def _gender_insight_markdown(
     Output('age-distribution-chart', 'figure'),
     Output('age-distribution-summary', 'children'),
     Input('demographics-club-filter', 'value'),
+    Input('ui-language', 'data'),
 )
-def update_age_distribution(selected_club):
+def update_age_distribution(selected_club, lang):
+    lc = _lang_code(lang)
     try:
         if selected_club == 'Todos los Clubes':
             filtered_df = df
@@ -2197,7 +2318,7 @@ def update_age_distribution(selected_club):
             filtered_df = df[df['club_name'] == selected_club]
 
         n_cat = len(filtered_df)
-        na_age = 'Sin especificar (edad)'
+        na_age = tr(lc, 'na_age')
         fd = filtered_df.copy()
         fd['_age_disp'] = fd['age_group'].fillna(na_age).astype(str)
         vc_all = fd['_age_disp'].value_counts()
@@ -2208,14 +2329,15 @@ def update_age_distribution(selected_club):
             na_age,
             None,
             selected_club,
+            lang=lc,
         )
 
         if n_cat == 0:
-            summary_md = '*No hay productos en el catálogo filtrado.*'
+            summary_md = f'*{tr(lc, "no_products_filtered")}*'
         elif len(vc_all) == 0:
-            summary_md = '*No hay datos de edad.*'
+            summary_md = f'*{tr(lc, "no_age_data")}*'
         else:
-            summary_md = _age_insight_markdown(filtered_df, na_age, n_cat, vc_all, selected_club)
+            summary_md = _age_insight_markdown(filtered_df, na_age, n_cat, vc_all, selected_club, lang=lc)
 
         summary = dcc.Markdown(
             summary_md,
@@ -2227,11 +2349,11 @@ def update_age_distribution(selected_club):
     except Exception as e:
         fig = go.Figure()
         fig.update_layout(
-            title='Error al cargar datos demográficos',
+            title=tr(lc, 'demo_err_age'),
             **CHART_LAYOUT
         )
         err = dcc.Markdown(
-            f'*Error al procesar datos:* `{str(e)}`',
+            f'*{tr(lc, "demo_err_proc", err=str(e))}*',
             className='text-danger',
             style={'fontSize': '14px'},
         )
@@ -2241,8 +2363,10 @@ def update_age_distribution(selected_club):
     Output('gender-distribution-chart', 'figure'),
     Output('gender-distribution-summary', 'children'),
     Input('demographics-club-filter', 'value'),
+    Input('ui-language', 'data'),
 )
-def update_gender_distribution(selected_club):
+def update_gender_distribution(selected_club, lang):
+    lc = _lang_code(lang)
     try:
         if selected_club == 'Todos los Clubes':
             filtered_df = df
@@ -2250,7 +2374,7 @@ def update_gender_distribution(selected_club):
             filtered_df = df[df['club_name'] == selected_club]
 
         n_cat = len(filtered_df)
-        na_g = 'Sin género declarado'
+        na_g = tr(lc, 'na_gender')
         sin_genero_color = '#D3D3D3'
         fd = filtered_df.copy()
         fd['_gender_viz'] = fd['gender'].apply(_gender_label_for_chart)
@@ -2264,12 +2388,15 @@ def update_gender_distribution(selected_club):
             None,
             selected_club,
             segment_colors={na_g: sin_genero_color},
+            lang=lc,
         )
 
         if n_cat == 0:
-            summary_md = '*No hay productos en el catálogo filtrado.*'
+            summary_md = f'*{tr(lc, "no_products_filtered")}*'
         else:
-            summary_md = _gender_insight_markdown(filtered_df, na_g, n_cat, vc_all, selected_club)
+            summary_md = _gender_insight_markdown(
+                filtered_df, na_g, n_cat, vc_all, selected_club, lang=lc,
+            )
 
         summary = dcc.Markdown(
             summary_md,
@@ -2281,11 +2408,11 @@ def update_gender_distribution(selected_club):
     except Exception as e:
         fig = go.Figure()
         fig.update_layout(
-            title='Error al cargar datos de género',
+            title=tr(lc, 'demo_err_gender'),
             **CHART_LAYOUT
         )
         err = dcc.Markdown(
-            f'*Error al procesar datos:* `{str(e)}`',
+            f'*{tr(lc, "demo_err_proc", err=str(e))}*',
             className='text-danger',
             style={'fontSize': '14px'},
         )
@@ -2516,8 +2643,10 @@ def _sizes_small_multiples_layout(filtered_df, clubs_ordered, show_letters, use_
     Input('sizes-club-filter', 'value'),
     Input('sizes-type-toggle', 'value'),
     Input('sizes-scale-toggle', 'value'),
+    Input('ui-language', 'data'),
 )
-def update_sizes_charts(selected_club, show_letters, use_consistent_scale):
+def update_sizes_charts(selected_club, show_letters, use_consistent_scale, lang):
+    lc = _lang_code(lang)
     try:
         if selected_club == 'Todos los Clubes':
             filtered_df = df
@@ -2538,18 +2667,18 @@ def update_sizes_charts(selected_club, show_letters, use_consistent_scale):
 
         if show_letters:
             filtered_sizes = letter_sizes
-            size_type_text = "tallas de letras"
+            size_type_text = tr(lc, 'letter_sizes')
         else:
             filtered_sizes = number_sizes
-            size_type_text = "tallas numéricas"
+            size_type_text = tr(lc, 'number_sizes')
 
-        empty_msg = f"No hay datos de {size_type_text} para {selected_club}"
+        empty_msg = tr(lc, 'no_size_data', stype=size_type_text, club=selected_club)
         if not filtered_sizes:
             return (
                 None,
                 "0/0",
-                "N/D",
-                "N/D",
+                tr(lc, 'no_data_short'),
+                tr(lc, 'no_data_short'),
                 "0",
                 empty_msg,
             )
@@ -2559,8 +2688,8 @@ def update_sizes_charts(selected_club, show_letters, use_consistent_scale):
             return (
                 None,
                 "0/0",
-                "N/D",
-                "N/D",
+                tr(lc, 'no_data_short'),
+                tr(lc, 'no_data_short'),
                 "0",
                 empty_msg,
             )
@@ -2570,7 +2699,7 @@ def update_sizes_charts(selected_club, show_letters, use_consistent_scale):
         )
 
         total_unique_sizes = len(size_counts)
-        most_popular_size = size_counts.index[0] if len(size_counts) > 0 else "N/D"
+        most_popular_size = size_counts.index[0] if len(size_counts) > 0 else tr(lc, 'no_data_short')
 
         all_variety = all_clubs_variety_by_mode(show_letters)
         peer_max_variety = max(all_variety.values()) if all_variety else 0
@@ -2581,7 +2710,7 @@ def update_sizes_charts(selected_club, show_letters, use_consistent_scale):
         )
 
         most_diverse_club = (
-            max(all_variety, key=all_variety.get) if all_variety else "N/D"
+            max(all_variety, key=all_variety.get) if all_variety else tr(lc, 'no_data_short')
         )
         avg_sizes_per_club = (
             sum(all_variety.values()) / len(all_variety) if all_variety else 0
@@ -2589,9 +2718,12 @@ def update_sizes_charts(selected_club, show_letters, use_consistent_scale):
 
         if selected_club == 'Todos los Clubes':
             total_filtered_products = len(filtered_sizes)
-            club_info = (
-                f"Análisis de {size_type_text} para todos los {len(clubs_ordered)} clubes: "
-                f"{total_filtered_products} productos encontrados."
+            club_info = tr(
+                lc,
+                'sizes_all_clubs',
+                stype=size_type_text,
+                n=len(clubs_ordered),
+                nprod=total_filtered_products,
             )
         else:
             club_variety_count = all_variety.get(selected_club, 0)
@@ -2604,9 +2736,13 @@ def update_sizes_charts(selected_club, show_letters, use_consistent_scale):
                         not show_letters and category == 'Number'
                     ):
                         club_filtered_sizes.append(normalized_size)
-            club_info = (
-                f"{selected_club}: {club_variety_count} {size_type_text} únicas de "
-                f"{len(club_filtered_sizes)} productos totales."
+            club_info = tr(
+                lc,
+                'sizes_one_club',
+                club=selected_club,
+                nvar=club_variety_count,
+                stype=size_type_text,
+                ntot=len(club_filtered_sizes),
             )
 
         return (
@@ -2619,7 +2755,15 @@ def update_sizes_charts(selected_club, show_letters, use_consistent_scale):
         )
 
     except Exception as e:
-        return None, "0/0", "Sin datos", "Sin datos", "0", f"Error: {str(e)}"
+        lc = _lang_code(lang)
+        return (
+            None,
+            "0/0",
+            tr(lc, 'no_data_short'),
+            tr(lc, 'no_data_short'),
+            "0",
+            f"Error: {str(e)}",
+        )
 
 # ════════════════════════════════════════════════════════════════
 # RUN
